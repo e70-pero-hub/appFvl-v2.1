@@ -92,9 +92,9 @@ class UIManager {
         document.querySelector('.close-modal').addEventListener('click', async () => {
             this.modal.classList.add('hidden');
             if (this.html5QrcodeScanner) {
-                try { 
-                    await this.html5QrcodeScanner.stop(); 
-                } catch(e) {}
+                try {
+                    await this.html5QrcodeScanner.stop();
+                } catch (e) { }
                 this.html5QrcodeScanner = null;
             }
             const qrEl = document.getElementById('qr-reader');
@@ -637,7 +637,7 @@ class UIManager {
         }
 
         const headers = ["Vozilo", "Tablice", "Vozac", "Datum Tocenja", "Kilometraza", "Litraza", "Cena po litri", "Ukupno Placeno", "QR PIB Prodavca", "QR PFR Datum", "QR Broj Racuna"];
-        
+
         const lines = [headers.join(",")];
         this.currentReportLogs.forEach(log => {
             let pfrDate = '';
@@ -653,9 +653,9 @@ class UIManager {
                     pfrId = log.receipt_qr_data;
                 }
             }
-            
+
             const ukupanTrosak = (parseFloat(log.liters) * parseFloat(log.price)).toFixed(2);
-            
+
             const row = [
                 `"${log.brand} ${log.model}"`,
                 `"${log.plate}"`,
@@ -841,31 +841,31 @@ class UIManager {
             qrReader.style.display = 'block';
             qrReader.innerHTML = '';
             scanBtn.classList.add('hidden');
-            
+
             // Zaustavi prethodni skener ako postoji
             if (this.html5QrcodeScanner) {
-                try { await this.html5QrcodeScanner.stop(); } catch(e) {}
+                try { await this.html5QrcodeScanner.stop(); } catch (e) { }
                 this.html5QrcodeScanner = null;
             }
-            
+
             this.html5QrcodeScanner = new Html5Qrcode("qr-reader");
-            
+
             const onScanSuccess = async (decodedText) => {
                 document.getElementById('f-qrdata').value = decodedText;
-                
+
                 try {
                     const u = new URL(decodedText);
                     const pfrDate = u.searchParams.get('d');
                     const pfrTotal = u.searchParams.get('tc');
-                    
-                    if(pfrDate) {
+
+                    if (pfrDate) {
                         const dateMatch = pfrDate.match(/^(\d{4}-\d{2}-\d{2})/);
                         if (dateMatch) {
                             document.getElementById('f-date').value = dateMatch[1];
                             document.getElementById('f-date').style.backgroundColor = 'rgba(40, 167, 69, 0.2)';
                         }
                     }
-                    if(pfrTotal) {
+                    if (pfrTotal) {
                         document.getElementById('f-scanned-total').value = parseFloat(pfrTotal);
                         document.getElementById('f-price').placeholder = `Sa računa: ${pfrTotal} RSD`;
                         const liters = parseFloat(document.getElementById('f-liters').value);
@@ -875,23 +875,23 @@ class UIManager {
                         }
                     }
                     alert('QR kod uspešno učitan! Datum i račun preuzeti.');
-                } catch(e) {
+                } catch (e) {
                     alert('QR kod skeniran (Nije prepoznat kao zvanični PFR račun).');
                 }
 
-                try { await this.html5QrcodeScanner.stop(); } catch(e) {}
+                try { await this.html5QrcodeScanner.stop(); } catch (e) { }
                 this.html5QrcodeScanner = null;
                 qrReader.style.display = 'none';
                 qrReader.innerHTML = '';
                 scanBtn.classList.remove('hidden');
             };
-            
+
             try {
                 await this.html5QrcodeScanner.start(
                     { facingMode: "environment" },
                     { fps: 10, qrbox: { width: 250, height: 250 } },
                     onScanSuccess,
-                    () => {} // ignorisemo greške skeniranja
+                    () => { } // ignorisemo greške skeniranja
                 );
             } catch (err) {
                 console.error('Greška pri pokretanju kamere:', err);
@@ -903,7 +903,7 @@ class UIManager {
         };
 
         // Auto kalkulacija cene po litru preko QR iznosa
-        document.getElementById('f-liters').addEventListener('input', function(e) {
+        document.getElementById('f-liters').addEventListener('input', function (e) {
             const total = document.getElementById('f-scanned-total').value;
             const liters = parseFloat(e.target.value);
             if (total && liters > 0) {
@@ -929,9 +929,9 @@ class UIManager {
             await this.dm.addItem('fuel_logs', log, imageFile);
 
             if (this.html5QrcodeScanner) {
-                try { 
-                    await this.html5QrcodeScanner.stop(); 
-                } catch(e) {}
+                try {
+                    await this.html5QrcodeScanner.stop();
+                } catch (e) { }
                 this.html5QrcodeScanner = null;
             }
             this.modal.classList.add('hidden');
@@ -945,7 +945,7 @@ class UIManager {
 
     async resetVehicleDates(vehicleId) {
         if (!confirm('Da li ste sigurni da želite da resetujete datume (Registracija +1 god, Servis +1 god, Gume +5 mes)?')) return;
-        
+
         const vehicles = await this.dm.getData('vehicles');
         const v = vehicles.find(veh => veh.id === vehicleId);
         if (!v) return;
