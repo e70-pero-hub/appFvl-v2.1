@@ -638,7 +638,7 @@ class UIManager {
 
         const headers = ["Vozilo", "Tablice", "Vozac", "Datum Tocenja", "Kilometraza", "Litraza", "Cena po litri", "Ukupno Placeno", "QR PIB Prodavca", "QR PFR Datum", "QR Broj Racuna"];
 
-        const lines = [headers.join(",")];
+        const lines = [headers.join(";")];
         this.currentReportLogs.forEach(log => {
             let pfrDate = '';
             let pfrId = '';
@@ -669,10 +669,10 @@ class UIManager {
                 `"${pfrDate}"`,
                 `"${pfrId}"`
             ];
-            lines.push(row.join(","));
+            lines.push(row.join(";"));
         });
 
-        const csvContent = lines.join("\n");
+        const csvContent = lines.join("\r\n");
         const bom = "\uFEFF"; // Omogućava UTF-8 enkodiranje u Excelu
         const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
