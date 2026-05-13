@@ -672,8 +672,8 @@ class UIManager {
             lines.push(row.join(";"));
         });
 
-        const csvContent = lines.join("\r\n");
-        const bom = "\uFEFF"; // Omogućava UTF-8 enkodiranje u Excelu
+        const csvContent = lines.join(String.fromCharCode(13, 10));
+        const bom = String.fromCharCode(0xFEFF); // Omogućava UTF-8 enkodiranje u Excelu
         const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         const url = URL.createObjectURL(blob);
