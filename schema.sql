@@ -51,6 +51,7 @@ SELECT
     fl.price,
     fl.date AS fuel_date,
     fl.receipt_qr_data,
+    fl.receipt_image_path,
     TO_CHAR(fl.date, 'YYYY-MM') AS month_year,
     v.id AS vehicle_id,
     v.plate,

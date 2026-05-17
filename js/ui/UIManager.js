@@ -189,11 +189,18 @@ class UIManager {
             summaryHtml += logs.map(log => {
                 const vehicle = vehicles.find(v => v.id === log.vehicleId);
                 const vehicleName = vehicle ? `${vehicle.brand} ${vehicle.model} (${vehicle.plate})` : `Vozilo ID: ${log.vehicleId}`;
+                const hasQr = log.qrData ? `
+                    <span class="card-badge" style="background: rgba(40, 167, 69, 0.15); color: #28a745; border: 1px solid rgba(40, 167, 69, 0.3); font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; font-weight: 600; text-transform: uppercase;">
+                        <i class="fas fa-qrcode"></i> QR
+                    </span>` : '';
                 return `
                     <div class="data-card">
-                        <div class="card-header">
-                            <span class="card-title">${vehicleName}</span>
-                            <span style="font-size: 0.8rem; color:var(--text-dim);">${new Date(log.date).toLocaleDateString()}</span>
+                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                <span class="card-title">${vehicleName}</span>
+                                ${hasQr}
+                            </div>
+                            <span style="font-size: 0.8rem; color:var(--text-dim); white-space: nowrap;">${new Date(log.date).toLocaleDateString()}</span>
                         </div>
                         <div class="card-body">
                             <div>Kilometraža: <strong>${log.km} km</strong></div>
@@ -365,8 +372,14 @@ class UIManager {
             html += this.fuelLoadedLogs.map(log => {
                 const v = vehicles.find(veh => veh.id === log.vehicleId);
                 const vehicleName = v ? `${v.brand} ${v.model}` : `Vozilo ID: ${log.vehicleId}`;
-                const hasQr = log.qrData ? `<span style="color:var(--primary); font-size:0.8rem;"><i class="fas fa-qrcode"></i> Skenirano</span>` : '';
-                const hasImg = log.image ? `<br><a href="${log.image}" target="_blank" style="color:var(--accent);font-size:0.8rem;"><i class="fas fa-image"></i> Pogledaj račun</a>` : '';
+                const hasQr = log.qrData ? `
+                    <span class="card-badge" style="background: rgba(40, 167, 69, 0.15); color: #28a745; border: 1px solid rgba(40, 167, 69, 0.3); font-size: 0.75rem; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px;">
+                        <i class="fas fa-qrcode"></i> QR Kod Sačuvan
+                    </span>` : '';
+                const hasImg = log.image ? `
+                    <a href="${log.image}" target="_blank" class="card-badge" style="background: rgba(255, 152, 0, 0.15); color: #ff9800; border: 1px solid rgba(255, 152, 0, 0.3); font-size: 0.75rem; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; text-decoration: none; text-transform: uppercase; letter-spacing: 0.3px; transition: all 0.2s ease;">
+                        <i class="fas fa-receipt"></i> Slika Računa
+                    </a>` : '';
 
                 return `
                     <div class="data-card">
@@ -380,7 +393,7 @@ class UIManager {
                             <div style="grid-column: span 2;">
                                 Količina i iznos: <strong style="color:var(--accent)">${log.liters} L (${(log.liters * log.price).toLocaleString()} RSD)</strong>
                             </div>
-                            <div style="grid-column: span 2;">
+                            <div style="grid-column: span 2; display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem;">
                                 ${hasQr} ${hasImg}
                             </div>
                         </div>
@@ -496,19 +509,33 @@ class UIManager {
                     let vTPrice = vLogs.reduce((acc, l) => acc + parseFloat(l.price * l.liters), 0);
                     let vAvg = firstLog.vehicle_avg;
 
-                    let detailedLogsHtml = vLogs.map(log => `
-                        <div class="data-card" style="margin-top:0.5rem; background: var(--bg-main); border: 1px solid var(--border-color); box-shadow: none;">
-                            <div class="card-header" style="border-bottom: 1px dashed var(--border-color); padding-bottom:0.5rem; display: flex; justify-content: space-between;">
-                                <span style="font-size: 0.8rem; color:var(--text-dim);"><i class="far fa-calendar-alt"></i> ${new Date(log.fuel_date).toLocaleDateString()}</span>
-                                <span style="font-size: 0.8rem;">Cena/L: <strong>${log.price}</strong> RSD</span>
+                    let detailedLogsHtml = vLogs.map(log => {
+                        const hasQr = log.receipt_qr_data ? `
+                            <span class="card-badge" style="background: rgba(40, 167, 69, 0.15); color: #28a745; border: 1px solid rgba(40, 167, 69, 0.3); font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; font-weight: 600; text-transform: uppercase;">
+                                <i class="fas fa-qrcode"></i> QR
+                            </span>` : '';
+                        const hasImg = log.receipt_image_path ? `
+                            <a href="${log.receipt_image_path}" target="_blank" class="card-badge" style="background: rgba(255, 152, 0, 0.15); color: #ff9800; border: 1px solid rgba(255, 152, 0, 0.3); font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; font-weight: 600; text-decoration: none; text-transform: uppercase; cursor: pointer; transition: all 0.2s ease;">
+                                <i class="fas fa-receipt"></i> Račun
+                            </a>` : '';
+
+                        return `
+                            <div class="data-card" style="margin-top:0.5rem; background: var(--bg-main); border: 1px solid var(--border-color); box-shadow: none;">
+                                <div class="card-header" style="border-bottom: 1px dashed var(--border-color); padding-bottom:0.5rem; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                                    <span style="font-size: 0.8rem; color:var(--text-dim);"><i class="far fa-calendar-alt"></i> ${new Date(log.fuel_date).toLocaleDateString()}</span>
+                                    <span style="font-size: 0.8rem;">Cena/L: <strong>${log.price}</strong> RSD</span>
+                                </div>
+                                <div class="card-body" style="padding-top:0.5rem;">
+                                    <div>Kilometraža: <strong>${log.km.toLocaleString()} km</strong></div>
+                                    <div>Količina: <strong style="color:var(--accent)">${log.liters} L</strong></div>
+                                    <div style="grid-column: span 2;">Uplaćeno: <strong>${(log.liters * log.price).toLocaleString()} RSD</strong></div>
+                                    <div style="grid-column: span 2; display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.25rem;">
+                                        ${hasQr} ${hasImg}
+                                    </div>
+                                </div>
                             </div>
-                            <div class="card-body" style="padding-top:0.5rem;">
-                                <div>Kilometraža: <strong>${log.km.toLocaleString()} km</strong></div>
-                                <div>Količina: <strong style="color:var(--accent)">${log.liters} L</strong></div>
-                                <div style="grid-column: span 2;">Uplaćeno: <strong>${(log.liters * log.price).toLocaleString()} RSD</strong></div>
-                            </div>
-                        </div>
-                    `).join('');
+                        `;
+                    }).join('');
 
                     return `
                         <div class="data-card" style="margin-bottom: 1rem; border: 2px solid var(--primary);">
@@ -835,7 +862,7 @@ class UIManager {
 
         this.modal.classList.remove('hidden');
 
-        // QR Skener Listener - direktan pristup kameri bez UI za izbor kamere
+        // QR Skener Listener - direktan pristup kameri sa automatskim detektovanjem zadnje kamere i dinamičkim qrboxom
         scanBtn.onclick = async () => {
             const qrReader = document.getElementById('qr-reader');
             qrReader.style.display = 'block';
@@ -850,8 +877,31 @@ class UIManager {
 
             this.html5QrcodeScanner = new Html5Qrcode("qr-reader");
 
+            // Pomoćna funkcija za parsiranje srpskih PFR formata datuma
+            const parsePfrDate = (pfrDate) => {
+                if (!pfrDate) return null;
+                // 1. Format: YYYY-MM-DD... (npr. 2026-05-17T17:58:26)
+                let match = pfrDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                if (match) return `${match[1]}-${match[2]}-${match[3]}`;
+                
+                // 2. Format: DD.MM.YYYY... (npr. 17.05.2026_17:58:26)
+                match = pfrDate.match(/^(\d{2})\.(\d{2})\.(\d{4})/);
+                if (match) return `${match[3]}-${match[2]}-${match[1]}`;
+                
+                // 3. Format: YYYYMMDDHHmmss (npr. 20260517175826)
+                match = pfrDate.match(/^(\d{4})(\d{2})(\d{2})/);
+                if (match && parseInt(match[2]) <= 12 && parseInt(match[3]) <= 31) {
+                    return `${match[1]}-${match[2]}-${match[3]}`;
+                }
+                return null;
+            };
+
             const onScanSuccess = async (decodedText) => {
                 document.getElementById('f-qrdata').value = decodedText;
+
+                let isPfr = false;
+                let parsedTotal = false;
+                let parsedDate = false;
 
                 try {
                     const u = new URL(decodedText);
@@ -859,24 +909,44 @@ class UIManager {
                     const pfrTotal = u.searchParams.get('tc');
 
                     if (pfrDate) {
-                        const dateMatch = pfrDate.match(/^(\d{4}-\d{2}-\d{2})/);
-                        if (dateMatch) {
-                            document.getElementById('f-date').value = dateMatch[1];
+                        const formattedDate = parsePfrDate(pfrDate);
+                        if (formattedDate) {
+                            document.getElementById('f-date').value = formattedDate;
                             document.getElementById('f-date').style.backgroundColor = 'rgba(40, 167, 69, 0.2)';
+                            parsedDate = true;
                         }
                     }
                     if (pfrTotal) {
-                        document.getElementById('f-scanned-total').value = parseFloat(pfrTotal);
-                        document.getElementById('f-price').placeholder = `Sa računa: ${pfrTotal} RSD`;
-                        const liters = parseFloat(document.getElementById('f-liters').value);
-                        if (liters > 0) {
-                            document.getElementById('f-price').value = (parseFloat(pfrTotal) / liters).toFixed(2);
-                            document.getElementById('f-price').style.backgroundColor = 'rgba(40, 167, 69, 0.2)';
+                        const totalVal = parseFloat(pfrTotal);
+                        if (!isNaN(totalVal)) {
+                            document.getElementById('f-scanned-total').value = totalVal;
+                            document.getElementById('f-price').placeholder = `Sa računa: ${totalVal} RSD`;
+                            const liters = parseFloat(document.getElementById('f-liters').value);
+                            if (liters > 0) {
+                                document.getElementById('f-price').value = (totalVal / liters).toFixed(2);
+                                document.getElementById('f-price').style.backgroundColor = 'rgba(40, 167, 69, 0.2)';
+                            }
+                            parsedTotal = true;
                         }
                     }
-                    alert('QR kod uspešno učitan! Datum i račun preuzeti.');
+                    
+                    // Detekcija zvaničnog srpskog PFR računa (purs.gov.rs domen ili ključni parametri)
+                    if (decodedText.includes('purs.gov.rs') || u.searchParams.has('vl') || u.searchParams.has('tin')) {
+                        isPfr = true;
+                    }
+                    
+                    if (isPfr) {
+                        if (parsedDate && parsedTotal) {
+                            alert('Zvanični PFR račun uspešno prepoznat! Datum i iznos su automatski preuzeti.');
+                        } else {
+                            alert('Zvanični PFR račun je uspešno skeniran i sačuvan!\n\nMolimo unesite litražu i cenu ručno jer ovaj zvanični link ne sadrži te podatke u samom tekstu linka (već samo sigurnosni kod).');
+                        }
+                    } else {
+                        alert('QR kod uspešno skeniran i sačuvan! Unesite detalje točenja ručno.');
+                    }
                 } catch (e) {
-                    alert('QR kod skeniran (Nije prepoznat kao zvanični PFR račun).');
+                    // Nije URL, sačuvaj sirovi tekst
+                    alert('QR kod uspešno skeniran (Nije prepoznat kao zvanični PFR račun). Unesite detalje ručno.');
                 }
 
                 try { await this.html5QrcodeScanner.stop(); } catch (e) { }
@@ -886,12 +956,38 @@ class UIManager {
                 scanBtn.classList.remove('hidden');
             };
 
+            // Detekcija i aktivacija zadnje kamere
+            let cameraConfig = { facingMode: "environment" };
+            try {
+                const devices = await Html5Qrcode.getCameras();
+                if (devices && devices.length > 0) {
+                    const backCamera = devices.find(device => {
+                        const label = device.label.toLowerCase();
+                        return label.includes('back') || label.includes('rear') || label.includes('environment') || label.includes('nazad') || label.includes('pozadi');
+                    });
+                    if (backCamera) {
+                        cameraConfig = backCamera.id;
+                    } else {
+                        cameraConfig = devices[0].id;
+                    }
+                }
+            } catch (e) {
+                console.warn("Nije moguće izlistati kamere, koristimo facingMode fallback:", e);
+            }
+
             try {
                 await this.html5QrcodeScanner.start(
-                    { facingMode: "environment" },
-                    { fps: 10, qrbox: { width: 250, height: 250 } },
+                    cameraConfig,
+                    {
+                        fps: 10,
+                        qrbox: (width, height) => {
+                            const minEdge = Math.min(width, height);
+                            const size = Math.floor(minEdge * 0.7);
+                            return { width: size, height: size };
+                        }
+                    },
                     onScanSuccess,
-                    () => { } // ignorisemo greške skeniranja
+                    () => { } // ignorisemo prolazne greške skeniranja
                 );
             } catch (err) {
                 console.error('Greška pri pokretanju kamere:', err);
