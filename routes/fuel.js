@@ -48,6 +48,20 @@ router.post('/', upload.single('receipt_image'), async (req, res) => {
     const receipt_image_path = req.file ? `/uploads/${req.file.filename}` : null;
 
     try {
+        // Validacija kilometraže: nova kilometraža ne sme biti manja od prethodne za to vozilo
+        const latestLog = await pool.query(
+            'SELECT km FROM fuel_logs WHERE vehicle_id = $1 ORDER BY km DESC LIMIT 1',
+            [vehicle_id]
+        );
+        if (latestLog.rows.length > 0) {
+            const lastKm = latestLog.rows[0].km;
+            if (parseInt(km) <= parseInt(lastKm)) {
+                return res.status(400).json({ 
+                    error: `Kilometraža ne može biti manja ili jednaka prethodnoj unetoj kilometraži za ovo vozilo (${lastKm.toLocaleString()} km).` 
+                });
+            }
+        }
+
         const result = await pool.query(
             'INSERT INTO fuel_logs (vehicle_id, km, liters, price, date, receipt_qr_data, receipt_image_path) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
             [vehicle_id, km, liters, price, date, receipt_qr_data || null, receipt_image_path]

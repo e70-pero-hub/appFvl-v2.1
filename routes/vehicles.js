@@ -23,6 +23,23 @@ router.get('/', async (req, res) => {
     }
 });
 
+router.get('/:id/latest_km', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const result = await pool.query(
+            'SELECT km FROM fuel_logs WHERE vehicle_id = $1 ORDER BY km DESC LIMIT 1',
+            [id]
+        );
+        if (result.rows.length > 0) {
+            res.json({ km: result.rows[0].km });
+        } else {
+            res.json({ km: 0 });
+        }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 router.post('/', async (req, res) => {
     const { brand, model, plate, reg_exp, service, tires, user_id } = req.body;
     try {

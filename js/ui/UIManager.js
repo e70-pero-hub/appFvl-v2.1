@@ -189,10 +189,14 @@ class UIManager {
             summaryHtml += logs.map(log => {
                 const vehicle = vehicles.find(v => v.id === log.vehicleId);
                 const vehicleName = vehicle ? `${vehicle.brand} ${vehicle.model} (${vehicle.plate})` : `Vozilo ID: ${log.vehicleId}`;
-                const hasQr = log.qrData ? `
+                const isLink = log.qrData && log.qrData.startsWith('http');
+                const hasQr = log.qrData ? (isLink ? `
+                    <a href="${log.qrData}" target="_blank" class="card-badge" style="background: rgba(40, 167, 69, 0.15); color: #28a745; border: 1px solid rgba(40, 167, 69, 0.3); font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; font-weight: 600; text-transform: uppercase; text-decoration: none; cursor: pointer; transition: all 0.2s ease;" title="Klikni za proveru računa u Poreskoj Upravi">
+                        <i class="fas fa-qrcode"></i> QR
+                    </a>` : `
                     <span class="card-badge" style="background: rgba(40, 167, 69, 0.15); color: #28a745; border: 1px solid rgba(40, 167, 69, 0.3); font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; font-weight: 600; text-transform: uppercase;">
                         <i class="fas fa-qrcode"></i> QR
-                    </span>` : '';
+                    </span>`) : '';
                 return `
                     <div class="data-card">
                         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
@@ -372,10 +376,14 @@ class UIManager {
             html += this.fuelLoadedLogs.map(log => {
                 const v = vehicles.find(veh => veh.id === log.vehicleId);
                 const vehicleName = v ? `${v.brand} ${v.model}` : `Vozilo ID: ${log.vehicleId}`;
-                const hasQr = log.qrData ? `
+                const isLink = log.qrData && log.qrData.startsWith('http');
+                const hasQr = log.qrData ? (isLink ? `
+                    <a href="${log.qrData}" target="_blank" class="card-badge" style="background: rgba(40, 167, 69, 0.15); color: #28a745; border: 1px solid rgba(40, 167, 69, 0.3); font-size: 0.75rem; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; text-decoration: none; cursor: pointer; transition: all 0.2s ease;" title="Klikni za proveru računa u Poreskoj Upravi">
+                        <i class="fas fa-qrcode"></i> QR Kod Sačuvan
+                    </a>` : `
                     <span class="card-badge" style="background: rgba(40, 167, 69, 0.15); color: #28a745; border: 1px solid rgba(40, 167, 69, 0.3); font-size: 0.75rem; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px;">
                         <i class="fas fa-qrcode"></i> QR Kod Sačuvan
-                    </span>` : '';
+                    </span>`) : '';
                 const hasImg = log.image ? `
                     <a href="${log.image}" target="_blank" class="card-badge" style="background: rgba(255, 152, 0, 0.15); color: #ff9800; border: 1px solid rgba(255, 152, 0, 0.3); font-size: 0.75rem; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; text-decoration: none; text-transform: uppercase; letter-spacing: 0.3px; transition: all 0.2s ease;">
                         <i class="fas fa-receipt"></i> Slika Računa
@@ -510,10 +518,14 @@ class UIManager {
                     let vAvg = firstLog.vehicle_avg;
 
                     let detailedLogsHtml = vLogs.map(log => {
-                        const hasQr = log.receipt_qr_data ? `
+                        const isLink = log.receipt_qr_data && log.receipt_qr_data.startsWith('http');
+                        const hasQr = log.receipt_qr_data ? (isLink ? `
+                            <a href="${log.receipt_qr_data}" target="_blank" class="card-badge" style="background: rgba(40, 167, 69, 0.15); color: #28a745; border: 1px solid rgba(40, 167, 69, 0.3); font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; font-weight: 600; text-transform: uppercase; text-decoration: none; cursor: pointer; transition: all 0.2s ease;" title="Klikni za proveru računa u Poreskoj Upravi">
+                                <i class="fas fa-qrcode"></i> QR
+                            </a>` : `
                             <span class="card-badge" style="background: rgba(40, 167, 69, 0.15); color: #28a745; border: 1px solid rgba(40, 167, 69, 0.3); font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; font-weight: 600; text-transform: uppercase;">
                                 <i class="fas fa-qrcode"></i> QR
-                            </span>` : '';
+                            </span>`) : '';
                         const hasImg = log.receipt_image_path ? `
                             <a href="${log.receipt_image_path}" target="_blank" class="card-badge" style="background: rgba(255, 152, 0, 0.15); color: #ff9800; border: 1px solid rgba(255, 152, 0, 0.3); font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; font-weight: 600; text-decoration: none; text-transform: uppercase; cursor: pointer; transition: all 0.2s ease;">
                                 <i class="fas fa-receipt"></i> Račun
@@ -663,19 +675,22 @@ class UIManager {
             return;
         }
 
-        const headers = ["Vozilo", "Tablice", "Vozac", "Datum Tocenja", "Kilometraza", "Litraza", "Cena po litri", "Ukupno Placeno", "QR PIB Prodavca", "QR PFR Datum", "QR Broj Racuna"];
+        const headers = ["Vozilo", "Tablice", "Vozac", "Datum Tocenja", "Kilometraza", "Litraza", "Cena po litri", "Ukupno Placeno", "QR PIB Prodavca", "QR PFR Datum", "QR Broj Racuna", "Provera u Poreskoj Upravi"];
 
         const lines = [headers.join(";")];
         this.currentReportLogs.forEach(log => {
             let pfrDate = '';
             let pfrId = '';
             let pfrPib = '';
+            let proveraUrl = '';
+
             if (log.receipt_qr_data) {
                 try {
                     let u = new URL(log.receipt_qr_data);
                     pfrDate = u.searchParams.get('d') || '';
                     pfrId = u.searchParams.get('i') || '';
                     pfrPib = u.searchParams.get('tin') || '';
+                    proveraUrl = log.receipt_qr_data;
                 } catch (e) {
                     pfrId = log.receipt_qr_data;
                 }
@@ -694,7 +709,8 @@ class UIManager {
                 ukupanTrosak,
                 `"${pfrPib}"`,
                 `"${pfrDate}"`,
-                `"${pfrId}"`
+                `"${pfrId}"`,
+                `"${proveraUrl}"`
             ];
             lines.push(row.join(";"));
         });
@@ -837,6 +853,7 @@ class UIManager {
                 <div class="form-group">
                     <label>Kilometraža vozila</label>
                     <input type="number" id="f-km" required>
+                    <small id="f-km-helper" style="display: block; margin-top: 6px; color: var(--text-dim); font-size: 0.75rem; font-weight: 500; min-height: 15px;"></small>
                 </div>
                 <div style="display:flex; gap:10px;">
                     <div class="form-group" style="flex:1;">
@@ -861,6 +878,40 @@ class UIManager {
         `;
 
         this.modal.classList.remove('hidden');
+
+        // Dinamičko preuzimanje i prikaz poslednje kilometraže vozila
+        const vehicleSelect = document.getElementById('f-vehicle');
+        const kmHelper = document.getElementById('f-km-helper');
+        
+        const updateLatestKm = async () => {
+            const vehicleId = vehicleSelect.value;
+            if (!vehicleId) {
+                kmHelper.textContent = '';
+                return;
+            }
+            kmHelper.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Učitavam poslednju kilometražu...`;
+            try {
+                const response = await fetch(`${this.dm.apiUrl}/vehicles/${vehicleId}/latest_km`, {
+                    headers: this._authHeaders()
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.km > 0) {
+                        kmHelper.innerHTML = `<i class="fas fa-tachometer-alt"></i> Poslednja kilometraža: <strong style="color:var(--accent)">${data.km.toLocaleString()} km</strong> (Unesite veću vrednost)`;
+                        kmHelper.dataset.lastKm = data.km;
+                    } else {
+                        kmHelper.innerHTML = `<i class="fas fa-tachometer-alt"></i> Prvo točenje za ovo vozilo (Nema prethodnih unosa)`;
+                        kmHelper.dataset.lastKm = 0;
+                    }
+                }
+            } catch (e) {
+                console.error("Greška pri dohvatanju zadnje kilometraže:", e);
+                kmHelper.textContent = '';
+            }
+        };
+
+        vehicleSelect.addEventListener('change', updateLatestKm);
+        await updateLatestKm();
 
         // QR Skener Listener - direktan pristup kameri sa automatskim detektovanjem zadnje kamere i dinamičkim qrboxom
         scanBtn.onclick = async () => {
@@ -1012,9 +1063,17 @@ class UIManager {
 
         document.getElementById('fuel-form').onsubmit = async (e) => {
             e.preventDefault();
+            
+            const lastKm = parseInt(document.getElementById('f-km-helper').dataset.lastKm || '0');
+            const newKm = parseInt(document.getElementById('f-km').value);
+            if (lastKm > 0 && newKm <= lastKm) {
+                alert(`Greška pri unosu: Kilometraža ne može biti manja ili jednaka poslednjoj zabeleženoj kilometraži (${lastKm.toLocaleString()} km)!`);
+                return;
+            }
+
             const log = {
                 vehicleId: document.getElementById('f-vehicle').value,
-                km: parseInt(document.getElementById('f-km').value),
+                km: newKm,
                 liters: parseFloat(document.getElementById('f-liters').value),
                 price: parseFloat(document.getElementById('f-price').value),
                 date: document.getElementById('f-date').value,
@@ -1022,7 +1081,11 @@ class UIManager {
             };
             const imageFile = document.getElementById('f-image').files[0];
 
-            await this.dm.addItem('fuel_logs', log, imageFile);
+            const result = await this.dm.addItem('fuel_logs', log, imageFile);
+            if (result && result.error) {
+                alert(result.error);
+                return;
+            }
 
             if (this.html5QrcodeScanner) {
                 try {
