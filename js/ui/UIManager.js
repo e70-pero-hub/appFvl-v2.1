@@ -915,6 +915,17 @@ class UIManager {
 
         // QR Skener Listener - direktan pristup kameri sa automatskim detektovanjem zadnje kamere i dinamičkim qrboxom
         scanBtn.onclick = async () => {
+            // Unlocking AudioContext on user interaction to avoid autoplay restrictions
+            let audioCtx = null;
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+            } catch (e) {
+                console.warn("Failed to initialize AudioContext:", e);
+            }
+
             const qrReader = document.getElementById('qr-reader');
             qrReader.style.display = 'block';
             qrReader.innerHTML = '';
@@ -948,6 +959,40 @@ class UIManager {
             };
 
             const onScanSuccess = async (decodedText) => {
+                // 1. Zvučni signal (Beep) i vibracija
+                if (audioCtx) {
+                    try {
+                        const oscillator = audioCtx.createOscillator();
+                        const gainNode = audioCtx.createGain();
+                        oscillator.connect(gainNode);
+                        gainNode.connect(audioCtx.destination);
+                        oscillator.type = 'sine';
+                        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // Čist i jasan bip (A5 nota)
+                        gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+                        oscillator.start();
+                        oscillator.stop(audioCtx.currentTime + 0.15);
+                    } catch (e) {
+                        console.warn("Nije moguće pustiti zvuk:", e);
+                    }
+                }
+
+                if (navigator.vibrate) {
+                    try {
+                        navigator.vibrate(200); // Kratka vibracija od 200 milisekundi
+                    } catch (e) {
+                        console.warn("Vibracija nije podržana ili je blokirana:", e);
+                    }
+                }
+
+                // 2. Odmah zaustavi i sakrij kameru/prikaz skenera da se video ugasi pre nego što iskoči alert
+                try { await this.html5QrcodeScanner.stop(); } catch (e) { }
+                this.html5QrcodeScanner = null;
+                qrReader.style.display = 'none';
+                qrReader.innerHTML = '';
+                scanBtn.classList.remove('hidden');
+
+                // 3. Popuni podatke u formi i obavesti korisnika
                 document.getElementById('f-qrdata').value = decodedText;
 
                 let isPfr = false;
@@ -999,12 +1044,6 @@ class UIManager {
                     // Nije URL, sačuvaj sirovi tekst
                     alert('QR kod uspešno skeniran (Nije prepoznat kao zvanični PFR račun). Unesite detalje ručno.');
                 }
-
-                try { await this.html5QrcodeScanner.stop(); } catch (e) { }
-                this.html5QrcodeScanner = null;
-                qrReader.style.display = 'none';
-                qrReader.innerHTML = '';
-                scanBtn.classList.remove('hidden');
             };
 
             // Detekcija i aktivacija zadnje kamere
