@@ -937,7 +937,11 @@ class UIManager {
                 this.html5QrcodeScanner = null;
             }
 
-            this.html5QrcodeScanner = new Html5Qrcode("qr-reader");
+            this.html5QrcodeScanner = new Html5Qrcode("qr-reader", {
+                experimentalFeatures: {
+                    useBarCodeDetectorIfSupported: true
+                }
+            });
 
             // Pomoćna funkcija za parsiranje srpskih PFR formata datuma
             const parsePfrDate = (pfrDate) => {
@@ -1069,11 +1073,20 @@ class UIManager {
                 await this.html5QrcodeScanner.start(
                     cameraConfig,
                     {
-                        fps: 10,
+                        fps: 15, // Povećan FPS za brži odziv
                         qrbox: (width, height) => {
                             const minEdge = Math.min(width, height);
                             const size = Math.floor(minEdge * 0.7);
                             return { width: size, height: size };
+                        },
+                        // Zahtevamo visoku rezoluciju i kontinuirani autofokus kako bi se sitni QR kodovi na papirnim računima jasno videli
+                        videoConstraints: {
+                            width: { min: 640, ideal: 1280, max: 1920 },
+                            height: { min: 480, ideal: 720, max: 1080 },
+                            focusMode: "continuous",
+                            advanced: [
+                                { focusMode: "continuous" }
+                            ]
                         }
                     },
                     onScanSuccess,
