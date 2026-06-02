@@ -1050,54 +1050,113 @@ class UIManager {
                 }
             };
 
-            // Detekcija i aktivacija zadnje kamere
-            let cameraConfig = { facingMode: "environment" };
-            try {
-                const devices = await Html5Qrcode.getCameras();
-                if (devices && devices.length > 0) {
-                    const backCamera = devices.find(device => {
-                        const label = device.label.toLowerCase();
-                        return label.includes('back') || label.includes('rear') || label.includes('environment') || label.includes('nazad') || label.includes('pozadi');
-                    });
-                    if (backCamera) {
-                        cameraConfig = backCamera.id;
-                    } else {
-                        cameraConfig = devices[0].id;
-                    }
+            // Konfiguracija skenera sa dinamičkim qrbox-om
+            const scanConfig = {
+                fps: 15,
+                qrbox: (width, height) => {
+                    const minEdge = Math.min(width, height);
+                    const size = Math.floor(minEdge * 0.7);
+                    return { width: size, height: size };
+                },
+                // Napomena: aspectRatio 1.0 forsira kvadratni viewport koji poboljšava čitljivost QR kodova
+                aspectRatio: 1.0
+            };
+
+            // Strategija pokretanja kamere sa 3 nivoa fallback-a.
+            // KRITIČNO: NE koristimo getCameras()+deviceId jer to IGNORIŠE videoConstraints
+            // i pokreće kameru u niskoj rezoluciji (~480p) koja ne može da čita gusti QR sa papirnih računa.
+            // Umesto toga koristimo facingMode UNUTAR videoConstraints kako bi se HD rezolucija i autofokus primenili.
+            let started = false;
+
+            // POKUŠAJ 1: HD rezolucija + kontinuirani autofokus (idealno za papirne račune)
+            if (!started) {
+                try {
+                    await this.html5QrcodeScanner.start(
+                        { facingMode: { exact: "environment" } },
+                        {
+                            ...scanConfig,
+                            videoConstraints: {
+                                facingMode: { exact: "environment" },
+                                width: { min: 640, ideal: 1920, max: 2560 },
+                                height: { min: 480, ideal: 1080, max: 1440 },
+                                advanced: [
+                                    { focusMode: "continuous" },
+                                    { focusDistance: 0.15 }
+                                ]
+                            }
+                        },
+                        onScanSuccess,
+                        () => { }
+                    );
+                    started = true;
+                    console.log("QR Skener pokrenut: HD + Autofokus režim");
+                } catch (e1) {
+                    console.warn("HD+Autofokus pokretanje neuspešno, pokušavam sledeći nivo:", e1);
                 }
-            } catch (e) {
-                console.warn("Nije moguće izlistati kamere, koristimo facingMode fallback:", e);
             }
 
-            try {
-                await this.html5QrcodeScanner.start(
-                    cameraConfig,
-                    {
-                        fps: 15, // Povećan FPS za brži odziv
-                        qrbox: (width, height) => {
-                            const minEdge = Math.min(width, height);
-                            const size = Math.floor(minEdge * 0.7);
-                            return { width: size, height: size };
+            // POKUŠAJ 2: HD rezolucija bez naprednog fokusa (za telefone koji ne podržavaju focusMode)
+            if (!started) {
+                try {
+                    await this.html5QrcodeScanner.start(
+                        { facingMode: { exact: "environment" } },
+                        {
+                            ...scanConfig,
+                            videoConstraints: {
+                                facingMode: { exact: "environment" },
+                                width: { min: 640, ideal: 1280, max: 1920 },
+                                height: { min: 480, ideal: 720, max: 1080 }
+                            }
                         },
-                        // Zahtevamo visoku rezoluciju i kontinuirani autofokus kako bi se sitni QR kodovi na papirnim računima jasno videli
-                        videoConstraints: {
-                            width: { min: 640, ideal: 1280, max: 1920 },
-                            height: { min: 480, ideal: 720, max: 1080 },
-                            focusMode: "continuous",
-                            advanced: [
-                                { focusMode: "continuous" }
-                            ]
+                        onScanSuccess,
+                        () => { }
+                    );
+                    started = true;
+                    console.log("QR Skener pokrenut: HD režim (bez naprednog fokusa)");
+                } catch (e2) {
+                    console.warn("HD pokretanje neuspešno, pokušavam osnovni režim:", e2);
+                }
+            }
+
+            // POKUŠAJ 3: Osnovni režim sa facingMode (univerzalni fallback za starije uređaje)
+            if (!started) {
+                try {
+                    await this.html5QrcodeScanner.start(
+                        { facingMode: "environment" },
+                        scanConfig,
+                        onScanSuccess,
+                        () => { }
+                    );
+                    started = true;
+                    console.log("QR Skener pokrenut: Osnovni režim (fallback)");
+                } catch (err) {
+                    console.error('Greška pri pokretanju kamere (svi pokušaji neuspešni):', err);
+                    alert('Nije moguće pristupiti kameri. Proverite dozvole za kameru u podešavanjima pregledača.');
+                    qrReader.style.display = 'none';
+                    qrReader.innerHTML = '';
+                    scanBtn.classList.remove('hidden');
+                }
+            }
+
+            // Nakon uspešnog pokretanja, pokušaj da primeniš kontinuirani autofokus na aktivni stream
+            if (started) {
+                try {
+                    const videoElem = document.querySelector('#qr-reader video');
+                    if (videoElem && videoElem.srcObject) {
+                        const track = videoElem.srcObject.getVideoTracks()[0];
+                        const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+                        if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
+                            await track.applyConstraints({
+                                advanced: [{ focusMode: "continuous" }]
+                            });
+                            console.log("Kontinuirani autofokus uspešno primenjen na aktivni video stream.");
                         }
-                    },
-                    onScanSuccess,
-                    () => { } // ignorisemo prolazne greške skeniranja
-                );
-            } catch (err) {
-                console.error('Greška pri pokretanju kamere:', err);
-                alert('Nije moguće pristupiti kameri. Proverite dozvole za kameru u podešavanjima pregledača.');
-                qrReader.style.display = 'none';
-                qrReader.innerHTML = '';
-                scanBtn.classList.remove('hidden');
+                        // Pokušaj postaviti torch (baterijsku lampu) ako je dostupna i ako je mračno
+                        // (korisnik može i sam uključiti fleš iz nativne kamere, ali ovo pomaže za tamne pumpe)
+                    }
+                } catch (focusErr) {
+                    console.warn("Primena autofokusa na aktivni stream nije uspela (nije kritično):", focusErr);
+                }
             }
         };
 
