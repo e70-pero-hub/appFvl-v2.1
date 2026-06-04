@@ -18,7 +18,8 @@ class UIManager {
             this.currentRole = this.dm.currentUser.role;
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('main-app').style.display = 'flex';
-            const initial = this.dm.currentUser.full_name.split(' ').map(n => n[0]).join('').substring(0, 2);
+            const nameStr = this.dm.currentUser.full_name || this.dm.currentUser.username || '?';
+            const initial = nameStr.split(' ').filter(n => n).map(n => n[0]).join('').substring(0, 2).toUpperCase();
             const avatarBtn = document.getElementById('user-avatar');
             if (avatarBtn) avatarBtn.textContent = initial;
             this.updateRoleUI();
@@ -63,7 +64,8 @@ class UIManager {
                 document.getElementById('login-screen').style.display = 'none';
                 document.getElementById('main-app').style.display = 'flex';
 
-                const initial = this.dm.currentUser.full_name.split(' ').map(n => n[0]).join('').substring(0, 2);
+                const nameStr = this.dm.currentUser.full_name || this.dm.currentUser.username || '?';
+                const initial = nameStr.split(' ').filter(n => n).map(n => n[0]).join('').substring(0, 2).toUpperCase();
                 const avatarBtn = document.getElementById('user-avatar');
                 if (avatarBtn) avatarBtn.textContent = initial;
 
