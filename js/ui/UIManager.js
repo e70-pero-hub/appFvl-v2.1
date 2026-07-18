@@ -8,6 +8,7 @@ class UIManager {
         this.html5QrcodeScanner = null;
 
         this.initLogin();
+        this.initRegister();
         this.initEventListeners();
         this.checkSession();
         this.setupActivityTracker();
@@ -77,6 +78,66 @@ class UIManager {
         };
     }
 
+    initRegister() {
+        const registerForm = document.getElementById('register-form');
+        const registerError = document.getElementById('register-error');
+        const loginForm = document.getElementById('login-form');
+        const loginError = document.getElementById('login-error');
+        const demoHint = document.getElementById('demo-hint');
+        const toggleRegisterLink = document.getElementById('toggle-register-link');
+        const toggleLoginLink = document.getElementById('toggle-login-link');
+
+        toggleRegisterLink.onclick = (e) => {
+            e.preventDefault();
+            loginForm.classList.add('hidden');
+            registerForm.classList.remove('hidden');
+            demoHint.classList.add('hidden');
+            toggleRegisterLink.classList.add('hidden');
+            toggleLoginLink.classList.remove('hidden');
+            loginError.classList.remove('show');
+        };
+
+        toggleLoginLink.onclick = (e) => {
+            e.preventDefault();
+            registerForm.classList.add('hidden');
+            loginForm.classList.remove('hidden');
+            demoHint.classList.remove('hidden');
+            toggleLoginLink.classList.add('hidden');
+            toggleRegisterLink.classList.remove('hidden');
+            registerError.classList.remove('show');
+        };
+
+        registerForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const companyName = document.getElementById('reg-company').value;
+            const fullName = document.getElementById('reg-fullname').value;
+            const username = document.getElementById('reg-username').value;
+            const password = document.getElementById('reg-password').value;
+
+            const result = await this.dm.register(companyName, fullName, username, password);
+            if (result.success) {
+                this.currentRole = this.dm.currentUser.role;
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('main-app').style.display = 'flex';
+
+                const nameStr = this.dm.currentUser.full_name || this.dm.currentUser.username || '?';
+                const initial = nameStr.split(' ').filter(n => n).map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                const avatarBtn = document.getElementById('user-avatar');
+                if (avatarBtn) avatarBtn.textContent = initial;
+
+                this.updateRoleUI();
+
+                // Nova firma nema nijedno vozilo - vodimo direktno na dodavanje prvog vozila
+                this.setActiveNav(document.querySelector('[data-section="vehicles"]'));
+                await this.renderSection('vehicles');
+                this.showVehicleForm();
+            } else {
+                registerError.textContent = result.message;
+                registerError.classList.add('show');
+            }
+        };
+    }
+
     initEventListeners() {
         document.querySelector('.nav-links').addEventListener('click', (e) => {
             const li = e.target.closest('li');
@@ -137,6 +198,25 @@ class UIManager {
         if (element) element.classList.add('active');
     }
 
+    getExpiryStatus(dateString) {
+        const daysLeft = Math.ceil((new Date(dateString) - new Date()) / (1000 * 60 * 60 * 24));
+        if (daysLeft < 0) {
+            return { daysLeft, level: 'danger', colorVar: 'var(--danger)', text: `Isteklo (${Math.abs(daysLeft)} dana)` };
+        }
+        if (daysLeft <= 15) {
+            return { daysLeft, level: 'danger', colorVar: 'var(--danger)', text: `Kritično (${daysLeft} dana)` };
+        }
+        if (daysLeft <= 30) {
+            return { daysLeft, level: 'warning', colorVar: 'var(--warning)', text: `Uskoro (${daysLeft} dana)` };
+        }
+        return { daysLeft, level: 'ok', colorVar: 'var(--accent)', text: 'OK' };
+    }
+
+    _worstStatus(...statuses) {
+        const rank = { danger: 2, warning: 1, ok: 0 };
+        return statuses.reduce((worst, s) => rank[s.level] > rank[worst.level] ? s : worst);
+    }
+
     async renderSection(section) {
         this.contentArea.innerHTML = '<div class="loading-shimmer" style="padding:2rem;text-align:center;">Učitavam...</div>';
 
@@ -159,6 +239,11 @@ class UIManager {
         }
     }
 
+    goToReportsWarnings() {
+        this.setActiveNav(document.querySelector('[data-section="reports"]'));
+        this.renderReports({}, 'warnings');
+    }
+
     async renderDashboard() {
         this.sectionTitle.textContent = 'Početna (Nadzorna Tabla)';
         const [vehicles, fuelResult] = await Promise.all([
@@ -170,6 +255,17 @@ class UIManager {
         const logs = fuelResult.items || fuelResult;
         const totalLogs = fuelResult.total || (Array.isArray(fuelResult) ? fuelResult.length : 0);
 
+        let dangerCount = 0, warningCount = 0;
+        vehicles.forEach(v => {
+            [v.regExp, v.service, v.tires].forEach(d => {
+                const s = this.getExpiryStatus(d);
+                if (s.level === 'danger') dangerCount++;
+                else if (s.level === 'warning') warningCount++;
+            });
+        });
+        const totalWarnings = dangerCount + warningCount;
+        const warningsColor = dangerCount > 0 ? 'var(--danger)' : 'var(--warning)';
+
         let summaryHtml = `
             <div class="summary-cards">
                 <div class="summary-card">
@@ -180,8 +276,13 @@ class UIManager {
                     <h3>Broj Točenja</h3>
                     <div class="value">${totalLogs}</div>
                 </div>
+                ${totalWarnings > 0 ? `
+                <div class="summary-card" style="grid-column: span 2; cursor:pointer; border-color: ${warningsColor};" onclick="window.ui.goToReportsWarnings()">
+                    <h3><i class="fas fa-exclamation-triangle" style="color:${warningsColor};"></i> Upozorenja o isteku (Registracija/Servis/Gume)</h3>
+                    <div class="value" style="color:${warningsColor};">${totalWarnings}</div>
+                </div>` : ''}
             </div>
-            
+
             <h3 style="margin-bottom:1rem; font-size:1.1rem;">Nedavna Točenja</h3>
         `;
 
@@ -240,26 +341,23 @@ class UIManager {
                 const u = users.find(usr => usr.id === v.userId);
                 const userName = u ? u.full_name : 'Nije dodeljeno';
 
-                const getStatus = (dateString) => {
-                    const date = new Date(dateString);
-                    const daysLeft = Math.ceil((date - new Date()) / (1000 * 60 * 60 * 24));
-                    if (daysLeft < 0) return { text: 'Isteklo', badge: 'background: var(--danger);' };
-                    if (daysLeft <= 30) return { text: 'Uskoro (<30d)', badge: 'background: var(--warning);' };
-                    return { text: 'OK', badge: 'background: var(--accent);' };
-                };
-                const regStatus = getStatus(v.regExp);
+                const regStatus = this.getExpiryStatus(v.regExp);
+                const serviceStatus = this.getExpiryStatus(v.service);
+                const tiresStatus = this.getExpiryStatus(v.tires);
+                const worstStatus = this._worstStatus(regStatus, serviceStatus, tiresStatus);
+                const dot = (status) => `<i class="fas fa-circle" style="color:${status.colorVar}; font-size:0.55rem; margin-right:6px;"></i>`;
 
                 return `
                     <div class="data-card">
                         <div class="card-header">
                             <span class="card-title">${v.brand} ${v.model} (${v.plate})</span>
-                            <span class="card-badge" style="color:#fff; ${regStatus.badge}">${regStatus.text}</span>
+                            <span class="card-badge" style="color:#fff; background: ${worstStatus.colorVar};">${worstStatus.text}</span>
                         </div>
                         <div class="card-body">
                             <div>Zadužen: <strong>${userName}</strong></div>
-                            <div>Reg: <strong>${new Date(v.regExp).toLocaleDateString()}</strong></div>
-                            <div>Servis: <strong>${new Date(v.service).toLocaleDateString()}</strong></div>
-                            <div>Gume: <strong>${new Date(v.tires).toLocaleDateString()}</strong></div>
+                            <div>${dot(regStatus)}Reg: <strong>${new Date(v.regExp).toLocaleDateString()}</strong></div>
+                            <div>${dot(serviceStatus)}Servis: <strong>${new Date(v.service).toLocaleDateString()}</strong></div>
+                            <div>${dot(tiresStatus)}Gume: <strong>${new Date(v.tires).toLocaleDateString()}</strong></div>
                         </div>
                         ${this.currentRole === 'admin' ? `
                         <div class="card-actions">
@@ -447,6 +545,7 @@ class UIManager {
             <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
                 <button class="btn ${activeTab === 'fuel' ? 'btn-primary' : 'btn-secondary'}" style="flex:1;" onclick="window.ui.renderReports(window.ui.currentReportFilters, 'fuel')">Gorivo i Potrošnja</button>
                 <button class="btn ${activeTab === 'warnings' ? 'btn-primary' : 'btn-secondary'}" style="flex:1;" onclick="window.ui.renderReports(window.ui.currentReportFilters, 'warnings')">Isteci i Upozorenja</button>
+                <button class="btn ${activeTab === 'analytics' ? 'btn-primary' : 'btn-secondary'}" style="flex:1;" onclick="window.ui.renderReports(window.ui.currentReportFilters, 'analytics')">Analitika</button>
             </div>
         `;
 
@@ -457,6 +556,7 @@ class UIManager {
                 this.dm.getReports(filters)
             ]);
             this.currentReportLogs = data.logs;
+            this.currentReportSummary = data.summary;
 
             let filterHtml = `
                 <div class="data-card" style="margin-bottom: 1rem;">
@@ -477,7 +577,8 @@ class UIManager {
                             <button class="btn btn-primary" onclick="window.ui.applyReportFilters()" style="flex: 1;"><i class="fas fa-search"></i> Primeni</button>
                             <button class="btn btn-primary" onclick="window.ui.clearReportFilters()" style="flex: 1;"><i class="fas fa-times"></i> Očisti filtere</button>
                         </div>
-                        <button class="btn btn-secondary" onclick="window.ui.exportToCSV()" style="width: 100%; margin-top: 0.5rem; background: #28a745; color: #fff; border-color: #28a745;"><i class="fas fa-file-excel"></i> Export (CSV)</button>
+                        <button class="btn btn-secondary" onclick="window.ui.exportToCSV()" style="width: 100%; margin-top: 0.5rem; background: #28a745; color: #fff; border-color: #28a745;"><i class="fas fa-file-csv"></i> Export (CSV)</button>
+                        <button class="btn btn-secondary" onclick="window.ui.exportToExcel()" style="width: 100%; margin-top: 0.5rem; background: #217346; color: #fff; border-color: #217346;"><i class="fas fa-file-excel"></i> Export (Excel)</button>
                     </div>
                 </div>
             `;
@@ -529,7 +630,7 @@ class UIManager {
                                 <i class="fas fa-qrcode"></i> QR
                             </span>`) : '';
                         const hasImg = log.receipt_image_path ? `
-                            <a href="${log.receipt_image_path}" target="_blank" class="card-badge" style="background: rgba(255, 152, 0, 0.15); color: #ff9800; border: 1px solid rgba(255, 152, 0, 0.3); font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; font-weight: 600; text-decoration: none; text-transform: uppercase; cursor: pointer; transition: all 0.2s ease;">
+                            <a href="${log.receipt_image_path}?token=${encodeURIComponent(this.dm.token)}" target="_blank" class="card-badge" style="background: rgba(255, 152, 0, 0.15); color: #ff9800; border: 1px solid rgba(255, 152, 0, 0.3); font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; font-weight: 600; text-decoration: none; text-transform: uppercase; cursor: pointer; transition: all 0.2s ease;">
                                 <i class="fas fa-receipt"></i> Račun
                             </a>` : '';
 
@@ -572,31 +673,29 @@ class UIManager {
                 }).join('');
             }
             this.contentArea.innerHTML = tabsHtml + filterHtml + summaryHtml + listHtml;
-        } else {
+        } else if (activeTab === 'warnings') {
             // Tab za Upozorenja
             const [vehicles, users] = await Promise.all([
                 this.dm.getData('vehicles'),
                 this.dm.getData('users')
             ]);
 
-            const getDaysLeft = (dString) => Math.ceil((new Date(dString) - new Date()) / (1000 * 60 * 60 * 24));
-
             let warnings = [];
             vehicles.forEach(v => {
                 const userName = users.find(u => u.id === v.userId)?.full_name || 'Nedodeljeno';
                 const events = [
-                    { type: 'Registracija', days: getDaysLeft(v.regExp), date: v.regExp },
-                    { type: 'Servis', days: getDaysLeft(v.service), date: v.service },
-                    { type: 'Promena Guma', days: getDaysLeft(v.tires), date: v.tires }
+                    { type: 'Registracija', status: this.getExpiryStatus(v.regExp), date: v.regExp },
+                    { type: 'Servis', status: this.getExpiryStatus(v.service), date: v.service },
+                    { type: 'Promena Guma', status: this.getExpiryStatus(v.tires), date: v.tires }
                 ];
 
                 events.forEach(ev => {
-                    if (ev.days <= 30) {
+                    if (ev.status.daysLeft <= 30) {
                         warnings.push({
                             vehicle: `${v.brand} ${v.model} (${v.plate})`,
                             user: userName,
                             type: ev.type,
-                            days: ev.days,
+                            status: ev.status,
                             date: ev.date,
                             vehicleId: v.id
                         });
@@ -605,27 +704,24 @@ class UIManager {
             });
 
             // Sortiranje po hitnosti
-            warnings.sort((a, b) => a.days - b.days);
+            warnings.sort((a, b) => a.status.daysLeft - b.status.daysLeft);
 
             let listHtml = '';
             if (warnings.length === 0) {
                 listHtml = `<div class="data-card" style="text-align:center; padding: 2rem;"><p style="color:var(--success);">✅ Sva vozila su ažurna. Nema skorijih isteka registracija i servisa!</p></div>`;
             } else {
                 listHtml = warnings.map(w => {
-                    let badge = '';
-                    if (w.days < 0) badge = `<span class="card-badge" style="background:var(--danger);color:#fff">Isteklo (${Math.abs(w.days)} dana)</span>`;
-                    else if (w.days <= 15) badge = `<span class="card-badge" style="background:var(--danger);color:#fff">Kritično (${w.days} dana)</span>`;
-                    else badge = `<span class="card-badge" style="background:var(--warning);color:#fff">Uskoro (${w.days} dana)</span>`;
+                    const badge = `<span class="card-badge" style="background:${w.status.colorVar};color:#fff">${w.status.text}</span>`;
 
                     return `
-                        <div class="data-card" style="border-left: 4px solid ${w.days <= 15 ? 'var(--danger)' : 'var(--warning)'}; margin-bottom: 0.5rem;">
+                        <div class="data-card" style="border-left: 4px solid ${w.status.colorVar}; margin-bottom: 0.5rem;">
                             <div class="card-header">
                                 <span class="card-title">${w.vehicle}</span>
                                 ${badge}
                             </div>
                             <div class="card-body">
                                 <div>Vozač: <strong>${w.user}</strong></div>
-                                <div>Upozorenje: <strong><i class="fas fa-exclamation-triangle" style="color: ${w.days <= 15 ? 'var(--danger)' : 'var(--warning)'};"></i> ${w.type}</strong></div>
+                                <div>Upozorenje: <strong><i class="fas fa-exclamation-triangle" style="color: ${w.status.colorVar};"></i> ${w.type}</strong></div>
                                 <div style="grid-column: span 2;">Datum isteka: <strong>${new Date(w.date).toLocaleDateString()}</strong></div>
                             </div>
                             <div class="card-actions" style="margin-top: 1rem; border-top: 1px dashed var(--border-color); padding-top: 1rem;">
@@ -638,7 +734,258 @@ class UIManager {
                 }).join('');
             }
             this.contentArea.innerHTML = tabsHtml + listHtml;
+        } else if (activeTab === 'analytics') {
+            await this.renderReportsAnalytics(filters, tabsHtml);
         }
+    }
+
+    _bucketLogsByMonth(logs) {
+        const buckets = {};
+        logs.forEach(log => {
+            const key = log.month_year;
+            if (!buckets[key]) buckets[key] = { monthYear: key, totalLiters: 0, totalCost: 0, count: 0 };
+            buckets[key].totalLiters += parseFloat(log.liters);
+            buckets[key].totalCost += parseFloat(log.liters) * parseFloat(log.price);
+            buckets[key].count += 1;
+        });
+        return Object.values(buckets).sort((a, b) => a.monthYear.localeCompare(b.monthYear));
+    }
+
+    _rankVehiclesByConsumption(logs) {
+        const byPlate = {};
+        logs.forEach(log => {
+            if (!byPlate[log.plate]) {
+                const avg = log.vehicle_avg !== null && log.vehicle_avg !== undefined ? parseFloat(log.vehicle_avg) : null;
+                byPlate[log.plate] = { plate: log.plate, brand: log.brand, model: log.model, avg };
+            }
+        });
+        return Object.values(byPlate)
+            .filter(v => v.avg !== null && !isNaN(v.avg))
+            .sort((a, b) => b.avg - a.avg);
+    }
+
+    _computeAnomalies(logs) {
+        const CONSUMPTION_ANOMALY_THRESHOLD = 1.25;
+        const PRICE_ANOMALY_THRESHOLD = 1.15;
+        const anomalies = [];
+
+        // Grupisanje po vozilu — svaki tip anomalije se poredi sa SOPSTVENOM istorijom
+        // vozila (ne prosekom cele flote), jer različita vozila mogu strukturno imati
+        // različite cene goriva (dizel/benzin) što bi inače stalno lažno "aktiviralo" alarm.
+        const byVehicle = {};
+        logs.forEach(log => {
+            if (!byVehicle[log.vehicle_id]) byVehicle[log.vehicle_id] = [];
+            byVehicle[log.vehicle_id].push(log);
+        });
+
+        Object.values(byVehicle).forEach(vLogsRaw => {
+            const vLogs = [...vLogsRaw].sort((a, b) => new Date(a.fuel_date) - new Date(b.fuel_date));
+
+            // Cena po litru poslednjeg punjenja vs sopstveni prosek vozila (bar 2 punjenja)
+            if (vLogs.length >= 2) {
+                const latestLog = vLogs[vLogs.length - 1];
+                const priorLogs = vLogs.slice(0, -1);
+                const avgPrice = priorLogs.reduce((acc, l) => acc + parseFloat(l.price), 0) / priorLogs.length;
+                const price = parseFloat(latestLog.price);
+
+                if (price > avgPrice * PRICE_ANOMALY_THRESHOLD) {
+                    anomalies.push({
+                        type: 'price',
+                        vehicle: `${latestLog.brand} ${latestLog.model} (${latestLog.plate})`,
+                        driver: latestLog.full_name,
+                        date: latestLog.fuel_date,
+                        value: price,
+                        baseline: avgPrice,
+                        deviationPct: Math.round((price / avgPrice - 1) * 100),
+                        label: 'Cena po litru iznad sopstvenog proseka vozila'
+                    });
+                }
+            }
+
+            // Potrošnja poslednjeg punjenja, na osnovu uzastopnih km očitavanja (bar 3 punjenja)
+            if (vLogs.length >= 3) {
+                const instReadings = [];
+                for (let i = 1; i < vLogs.length; i++) {
+                    const kmDiff = vLogs[i].km - vLogs[i - 1].km;
+                    if (kmDiff > 0) {
+                        instReadings.push({ index: i, value: parseFloat(vLogs[i].liters) / kmDiff * 100 });
+                    }
+                }
+
+                if (instReadings.length >= 2) {
+                    const latest = instReadings[instReadings.length - 1];
+                    const baselineReadings = instReadings.slice(0, -1);
+                    const baseline = baselineReadings.reduce((acc, r) => acc + r.value, 0) / baselineReadings.length;
+
+                    if (latest.value >= baseline * CONSUMPTION_ANOMALY_THRESHOLD) {
+                        const log = vLogs[latest.index];
+                        anomalies.push({
+                            type: 'consumption',
+                            vehicle: `${log.brand} ${log.model} (${log.plate})`,
+                            driver: log.full_name,
+                            date: log.fuel_date,
+                            value: latest.value,
+                            baseline,
+                            deviationPct: Math.round((latest.value / baseline - 1) * 100),
+                            label: 'Potrošnja iznad sopstvenog proseka vozila'
+                        });
+                    }
+                }
+            }
+        });
+
+        return anomalies.sort((a, b) => new Date(b.date) - new Date(a.date));
+    }
+
+    async renderReportsAnalytics(filters, tabsHtml) {
+        this.contentArea.innerHTML = tabsHtml + '<div class="loading-shimmer" style="padding:2rem;text-align:center;">Učitavam analitiku...</div>';
+
+        const data = await this.dm.getReports({ plate: filters.plate, username: filters.username });
+        this.currentAnalyticsLogs = data.logs;
+        this.currentAnalyticsSummary = data.summary;
+
+        if (!data.logs || data.logs.length === 0) {
+            this.contentArea.innerHTML = tabsHtml + `<p style="color:var(--text-dim); text-align:center;">Nema dovoljno podataka za analitiku.</p>`;
+            return;
+        }
+
+        // Podrazumevano poslednjih 12 meseci, sa opcijom da se prikaže sva istorija
+        const showAll = this._analyticsShowAll === true;
+        let logsForCharts = data.logs;
+        if (!showAll) {
+            const cutoff = new Date();
+            cutoff.setMonth(cutoff.getMonth() - 11);
+            cutoff.setDate(1);
+            logsForCharts = data.logs.filter(l => new Date(l.fuel_date) >= cutoff);
+        }
+
+        const monthly = this._bucketLogsByMonth(logsForCharts);
+        const ranking = this._rankVehiclesByConsumption(data.logs);
+        const anomalies = this._computeAnomalies(data.logs);
+
+        const toggleBtn = `<button class="btn btn-secondary" style="width:100%; margin-bottom:1rem;" onclick="window.ui._analyticsShowAll = ${!showAll}; window.ui.renderReports(window.ui.currentReportFilters, 'analytics')">${showAll ? 'Prikaži poslednjih 12 meseci' : 'Prikaži svu istoriju'}</button>`;
+
+        const trendCard = `
+            <div class="data-card" style="margin-bottom: 1rem;">
+                <div class="card-header"><span class="card-title">📈 Trend Potrošnje</span></div>
+                <div class="chart-container"><canvas id="trend-chart"></canvas></div>
+            </div>
+        `;
+
+        const rankingCard = ranking.length > 0 ? `
+            <div class="data-card" style="margin-bottom: 1rem;">
+                <div class="card-header"><span class="card-title">🏆 Rangiranje Vozila (L/100km)</span></div>
+                <div class="chart-container" style="height: ${Math.max(160, ranking.length * 45)}px;"><canvas id="ranking-chart"></canvas></div>
+            </div>
+        ` : '';
+
+        let anomaliesHtml = '';
+        if (anomalies.length === 0) {
+            anomaliesHtml = `<div class="data-card" style="text-align:center; padding: 2rem;"><p style="color:var(--success);">✅ Nema uočenih anomalija u potrošnji ili ceni goriva.</p></div>`;
+        } else {
+            anomaliesHtml = anomalies.map(a => `
+                <div class="data-card" style="border-left: 4px solid var(--warning); margin-bottom: 0.5rem;">
+                    <div class="card-header">
+                        <span class="card-title">${a.vehicle}</span>
+                        <span class="card-badge" style="background:var(--warning);color:#fff">+${a.deviationPct}%</span>
+                    </div>
+                    <div class="card-body">
+                        <div>Vozač: <strong>${a.driver || 'Nepoznato'}</strong></div>
+                        <div style="grid-column: span 2;">${a.label}</div>
+                        <div>Datum: <strong>${new Date(a.date).toLocaleDateString()}</strong></div>
+                        <div>${a.type === 'price' ? 'Cena' : 'Potrošnja'}: <strong>${a.value.toFixed(2)} ${a.type === 'price' ? 'RSD/L' : 'L/100km'}</strong> (prosek: ${a.baseline.toFixed(2)})</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        this.contentArea.innerHTML = tabsHtml + toggleBtn + trendCard + rankingCard +
+            `<h3 style="margin-bottom:1rem; font-size:1.1rem;">⚠️ Uočene Anomalije</h3>` + anomaliesHtml;
+
+        this._renderTrendChart(monthly);
+        if (ranking.length > 0) this._renderRankingChart(ranking);
+    }
+
+    _chartColor(varName) {
+        return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+    }
+
+    _renderTrendChart(monthly) {
+        const canvas = document.getElementById('trend-chart');
+        if (!canvas || typeof Chart === 'undefined') return;
+        if (this._trendChart) this._trendChart.destroy();
+
+        const primary = this._chartColor('--primary');
+        const accent = this._chartColor('--accent');
+        const textDim = this._chartColor('--text-dim');
+        const border = this._chartColor('--border');
+
+        this._trendChart = new Chart(canvas, {
+            data: {
+                labels: monthly.map(m => m.monthYear),
+                datasets: [
+                    {
+                        type: 'bar',
+                        label: 'Litri',
+                        data: monthly.map(m => m.totalLiters),
+                        backgroundColor: primary,
+                        yAxisID: 'y'
+                    },
+                    {
+                        type: 'line',
+                        label: 'Trošak (RSD)',
+                        data: monthly.map(m => m.totalCost),
+                        borderColor: accent,
+                        backgroundColor: accent,
+                        yAxisID: 'y1',
+                        tension: 0.3
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: { legend: { labels: { color: textDim } } },
+                scales: {
+                    x: { ticks: { color: textDim }, grid: { color: border } },
+                    y: { type: 'linear', position: 'left', ticks: { color: textDim }, grid: { color: border }, title: { display: true, text: 'Litri', color: textDim } },
+                    y1: { type: 'linear', position: 'right', ticks: { color: textDim }, grid: { display: false }, title: { display: true, text: 'RSD', color: textDim } }
+                }
+            }
+        });
+    }
+
+    _renderRankingChart(ranking) {
+        const canvas = document.getElementById('ranking-chart');
+        if (!canvas || typeof Chart === 'undefined') return;
+        if (this._rankChart) this._rankChart.destroy();
+
+        const danger = this._chartColor('--danger');
+        const textDim = this._chartColor('--text-dim');
+        const border = this._chartColor('--border');
+
+        this._rankChart = new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels: ranking.map(r => r.plate),
+                datasets: [{
+                    label: 'L/100km',
+                    data: ranking.map(r => r.avg),
+                    backgroundColor: danger
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: textDim }, grid: { color: border } },
+                    y: { ticks: { color: textDim }, grid: { display: false } }
+                }
+            }
+        });
     }
 
     applyReportFilters() {
@@ -727,6 +1074,65 @@ class UIManager {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+    }
+
+    exportToExcel() {
+        if (typeof XLSX === 'undefined') {
+            alert("Excel biblioteka nije učitana. Proverite internet konekciju i pokušajte ponovo.");
+            return;
+        }
+        if (!this.currentReportLogs || this.currentReportLogs.length === 0) {
+            alert("Nema podataka za eksportovanje!");
+            return;
+        }
+
+        const headers = ["Vozilo", "Tablice", "Vozač", "Datum Točenja", "Kilometraža", "Litraža", "Cena po litri", "Ukupno Plaćeno", "QR PIB Prodavca", "QR PFR Datum", "QR Broj Računa", "Provera u Poreskoj Upravi"];
+
+        const rows = this.currentReportLogs.map(log => {
+            let pfrDate = '', pfrId = '', pfrPib = '', proveraUrl = '';
+            if (log.receipt_qr_data) {
+                try {
+                    let u = new URL(log.receipt_qr_data);
+                    pfrDate = u.searchParams.get('d') || '';
+                    pfrId = u.searchParams.get('i') || '';
+                    pfrPib = u.searchParams.get('tin') || '';
+                    proveraUrl = log.receipt_qr_data;
+                } catch (e) {
+                    pfrId = log.receipt_qr_data;
+                }
+            }
+            const ukupanTrosak = parseFloat(log.liters) * parseFloat(log.price);
+            return [
+                `${log.brand} ${log.model}`,
+                log.plate,
+                log.full_name,
+                new Date(log.fuel_date).toLocaleDateString(),
+                log.km,
+                parseFloat(log.liters),
+                parseFloat(log.price),
+                parseFloat(ukupanTrosak.toFixed(2)),
+                pfrPib,
+                pfrDate,
+                pfrId,
+                proveraUrl
+            ];
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+
+        const summary = this.currentReportSummary || {};
+        const summaryData = [
+            ["Ukupno Litara", parseFloat(summary.total_liters) || 0],
+            ["Dato za Gorivo (RSD)", parseFloat(summary.total_price) || 0],
+            ["Prosečna Potrošnja (L/100km)", summary.avg_consumption ? parseFloat(summary.avg_consumption) : '']
+        ];
+        const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Izveštaj');
+        XLSX.utils.book_append_sheet(wb, wsSummary, 'Rezime');
+
+        XLSX.writeFile(wb, `izveštaj_goriva_${new Date().toLocaleDateString()}.xlsx`);
     }
 
     async deleteVehicle(id) { await this.dm.deleteItem('vehicles', id) && await this.renderSection('vehicles'); }
@@ -894,7 +1300,7 @@ class UIManager {
             kmHelper.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Učitavam poslednju kilometražu...`;
             try {
                 const response = await fetch(`${this.dm.apiUrl}/vehicles/${vehicleId}/latest_km`, {
-                    headers: this._authHeaders()
+                    headers: this.dm._authHeaders()
                 });
                 if (response.ok) {
                     const data = await response.json();
@@ -905,6 +1311,8 @@ class UIManager {
                         kmHelper.innerHTML = `<i class="fas fa-tachometer-alt"></i> Prvo točenje za ovo vozilo (Nema prethodnih unosa)`;
                         kmHelper.dataset.lastKm = 0;
                     }
+                } else {
+                    kmHelper.textContent = '';
                 }
             } catch (e) {
                 console.error("Greška pri dohvatanju zadnje kilometraže:", e);
@@ -914,6 +1322,11 @@ class UIManager {
 
         vehicleSelect.addEventListener('change', updateLatestKm);
         await updateLatestKm();
+
+        // Vozač sa tačno jednim vozilom ne mora da bira iz padajuće liste - fokus ide odmah na km
+        if (vehicles.length === 1) {
+            document.getElementById('f-km').focus();
+        }
 
         // QR Skener Listener - direktan pristup kameri sa automatskim detektovanjem zadnje kamere i dinamičkim qrboxom
         scanBtn.onclick = async () => {

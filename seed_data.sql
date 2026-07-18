@@ -2,34 +2,34 @@
 -- TRUNCATE TABLE fuel_logs, vehicles, users RESTART IDENTITY CASCADE;
 
 -- 1. Unos 10 novih korisnika (vozača)
-INSERT INTO users (username, password, full_name, role) VALUES 
-('vozac1', 'sifra123', 'Ana Antic', 'user'),
-('vozac2', 'sifra123', 'Bojan Bogdanovic', 'user'),
-('vozac3', 'sifra123', 'Vuk Vuckovic', 'user'),
-('vozac4', 'sifra123', 'Goran Goranovic', 'user'),
-('vozac5', 'sifra123', 'Dejan Dejanovic', 'user'),
-('vozac6', 'sifra123', 'Djordje Djordjevic', 'user'),
-('vozac7', 'sifra123', 'Zoran Zoranovic', 'user'),
-('vozac8', 'sifra123', 'Ivan Ivanovic', 'user'),
-('vozac9', 'sifra123', 'Jelena Jovanovic', 'user'),
-('vozac10', 'sifra123', 'Katarina Kostic', 'user')
+INSERT INTO users (username, password, full_name, role, company_id) VALUES
+('vozac1', 'sifra123', 'Ana Antic', 'user', (SELECT id FROM companies WHERE slug = 'default')),
+('vozac2', 'sifra123', 'Bojan Bogdanovic', 'user', (SELECT id FROM companies WHERE slug = 'default')),
+('vozac3', 'sifra123', 'Vuk Vuckovic', 'user', (SELECT id FROM companies WHERE slug = 'default')),
+('vozac4', 'sifra123', 'Goran Goranovic', 'user', (SELECT id FROM companies WHERE slug = 'default')),
+('vozac5', 'sifra123', 'Dejan Dejanovic', 'user', (SELECT id FROM companies WHERE slug = 'default')),
+('vozac6', 'sifra123', 'Djordje Djordjevic', 'user', (SELECT id FROM companies WHERE slug = 'default')),
+('vozac7', 'sifra123', 'Zoran Zoranovic', 'user', (SELECT id FROM companies WHERE slug = 'default')),
+('vozac8', 'sifra123', 'Ivan Ivanovic', 'user', (SELECT id FROM companies WHERE slug = 'default')),
+('vozac9', 'sifra123', 'Jelena Jovanovic', 'user', (SELECT id FROM companies WHERE slug = 'default')),
+('vozac10', 'sifra123', 'Katarina Kostic', 'user', (SELECT id FROM companies WHERE slug = 'default'))
 ON CONFLICT (username) DO NOTHING;
 
 -- 2. Unos 10 novih vozila (svako vozilo vezujemo za jednog od prethodnih vozača)
 -- Pretpostavljamo da su ID-jevi korisnika kreirani redom, pa ih povezujemo po podupitu
 -- Napomena: ako su već postojali korisnici, ID-jevi će se razlikovati, ali ovo funkcioniše na čistoj bazi.
-INSERT INTO vehicles (brand, model, plate, reg_exp, service, tires, user_id) VALUES 
-('Toyota', 'Corolla', 'BG-001-AA', '2026-06-10', '2026-05-10', '2026-11-01', (SELECT id FROM users WHERE username = 'vozac1')),
-('Skoda', 'Octavia', 'BG-002-BB', '2026-07-15', '2026-06-15', '2026-11-01', (SELECT id FROM users WHERE username = 'vozac2')),
-('Fiat', 'Punto', 'NS-003-CC', '2026-08-20', '2026-07-20', '2026-11-01', (SELECT id FROM users WHERE username = 'vozac3')),
-('Opel', 'Astra', 'NI-004-DD', '2026-09-25', '2026-08-25', '2026-11-01', (SELECT id FROM users WHERE username = 'vozac4')),
-('Ford', 'Focus', 'KG-005-EE', '2026-10-30', '2026-09-30', '2026-11-01', (SELECT id FROM users WHERE username = 'vozac5')),
-('Peugeot', '308', 'SU-006-FF', '2026-11-10', '2026-10-10', '2026-11-01', (SELECT id FROM users WHERE username = 'vozac6')),
-('Renault', 'Megane', 'CA-007-GG', '2026-12-15', '2026-11-15', '2027-11-01', (SELECT id FROM users WHERE username = 'vozac7')),
-('Hyundai', 'i30', 'KŠ-008-HH', '2027-01-20', '2026-12-20', '2027-11-01', (SELECT id FROM users WHERE username = 'vozac8')),
-('Kia', 'Ceed', 'ZA-009-II', '2027-02-25', '2027-01-25', '2027-11-01', (SELECT id FROM users WHERE username = 'vozac9')),
-('Dacia', 'Sandero', 'LE-010-JJ', '2027-03-30', '2027-02-28', '2027-11-01', (SELECT id FROM users WHERE username = 'vozac10'))
-ON CONFLICT (plate) DO NOTHING;
+INSERT INTO vehicles (brand, model, plate, reg_exp, service, tires, user_id, company_id) VALUES
+('Toyota', 'Corolla', 'BG-001-AA', '2026-06-10', '2026-05-10', '2026-11-01', (SELECT id FROM users WHERE username = 'vozac1'), (SELECT id FROM companies WHERE slug = 'default')),
+('Skoda', 'Octavia', 'BG-002-BB', '2026-07-15', '2026-06-15', '2026-11-01', (SELECT id FROM users WHERE username = 'vozac2'), (SELECT id FROM companies WHERE slug = 'default')),
+('Fiat', 'Punto', 'NS-003-CC', '2026-08-20', '2026-07-20', '2026-11-01', (SELECT id FROM users WHERE username = 'vozac3'), (SELECT id FROM companies WHERE slug = 'default')),
+('Opel', 'Astra', 'NI-004-DD', '2026-09-25', '2026-08-25', '2026-11-01', (SELECT id FROM users WHERE username = 'vozac4'), (SELECT id FROM companies WHERE slug = 'default')),
+('Ford', 'Focus', 'KG-005-EE', '2026-10-30', '2026-09-30', '2026-11-01', (SELECT id FROM users WHERE username = 'vozac5'), (SELECT id FROM companies WHERE slug = 'default')),
+('Peugeot', '308', 'SU-006-FF', '2026-11-10', '2026-10-10', '2026-11-01', (SELECT id FROM users WHERE username = 'vozac6'), (SELECT id FROM companies WHERE slug = 'default')),
+('Renault', 'Megane', 'CA-007-GG', '2026-12-15', '2026-11-15', '2027-11-01', (SELECT id FROM users WHERE username = 'vozac7'), (SELECT id FROM companies WHERE slug = 'default')),
+('Hyundai', 'i30', 'KŠ-008-HH', '2027-01-20', '2026-12-20', '2027-11-01', (SELECT id FROM users WHERE username = 'vozac8'), (SELECT id FROM companies WHERE slug = 'default')),
+('Kia', 'Ceed', 'ZA-009-II', '2027-02-25', '2027-01-25', '2027-11-01', (SELECT id FROM users WHERE username = 'vozac9'), (SELECT id FROM companies WHERE slug = 'default')),
+('Dacia', 'Sandero', 'LE-010-JJ', '2027-03-30', '2027-02-28', '2027-11-01', (SELECT id FROM users WHERE username = 'vozac10'), (SELECT id FROM companies WHERE slug = 'default'))
+ON CONFLICT (company_id, plate) DO NOTHING;
 
 -- 3. Unos 5 točenja za svako vozilo (ukupno 50 točenja)
 -- Koristimo podupite da bismo preuzeli ID svake kreirane tablice (na osnovu registracije)

@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const fs = require('fs');
 const pool = require('../db');
 const upload = require('../middlewares/upload');
 
@@ -7,33 +8,42 @@ router.get('/', async (req, res) => {
     const { user_id, limit: limitStr, offset: offsetStr } = req.query;
     const limit = parseInt(limitStr) || 50;
     const offset = parseInt(offsetStr) || 0;
-    
+
     try {
         let countResult, dataResult;
-        
+
         if (user_id) {
             countResult = await pool.query(
                 `SELECT COUNT(*) FROM fuel_logs fl
                  INNER JOIN vehicles v ON fl.vehicle_id = v.id
-                 WHERE v.user_id = $1`,
-                [user_id]
+                 WHERE v.company_id = $1 AND v.user_id = $2`,
+                [req.user.company_id, user_id]
             );
             dataResult = await pool.query(
                 `SELECT fl.* FROM fuel_logs fl
                  INNER JOIN vehicles v ON fl.vehicle_id = v.id
-                 WHERE v.user_id = $1
+                 WHERE v.company_id = $1 AND v.user_id = $2
                  ORDER BY fl.date DESC
-                 LIMIT $2 OFFSET $3`,
-                [user_id, limit, offset]
+                 LIMIT $3 OFFSET $4`,
+                [req.user.company_id, user_id, limit, offset]
             );
         } else {
-            countResult = await pool.query('SELECT COUNT(*) FROM fuel_logs');
+            countResult = await pool.query(
+                `SELECT COUNT(*) FROM fuel_logs fl
+                 INNER JOIN vehicles v ON fl.vehicle_id = v.id
+                 WHERE v.company_id = $1`,
+                [req.user.company_id]
+            );
             dataResult = await pool.query(
-                'SELECT * FROM fuel_logs ORDER BY date DESC LIMIT $1 OFFSET $2',
-                [limit, offset]
+                `SELECT fl.* FROM fuel_logs fl
+                 INNER JOIN vehicles v ON fl.vehicle_id = v.id
+                 WHERE v.company_id = $1
+                 ORDER BY fl.date DESC
+                 LIMIT $2 OFFSET $3`,
+                [req.user.company_id, limit, offset]
             );
         }
-        
+
         res.json({
             rows: dataResult.rows,
             total: parseInt(countResult.rows[0].count)
@@ -48,6 +58,15 @@ router.post('/', upload.single('receipt_image'), async (req, res) => {
     const receipt_image_path = req.file ? `/uploads/${req.file.filename}` : null;
 
     try {
+        const vehicleCheck = await pool.query(
+            'SELECT id FROM vehicles WHERE id = $1 AND company_id = $2',
+            [vehicle_id, req.user.company_id]
+        );
+        if (vehicleCheck.rows.length === 0) {
+            if (req.file) fs.unlink(req.file.path, () => {});
+            return res.status(404).json({ error: 'Vozilo nije pronađeno' });
+        }
+
         // Validacija kilometraže: nova kilometraža ne sme biti manja od prethodne za to vozilo
         const latestLog = await pool.query(
             'SELECT km FROM fuel_logs WHERE vehicle_id = $1 ORDER BY km DESC LIMIT 1',
@@ -56,8 +75,8 @@ router.post('/', upload.single('receipt_image'), async (req, res) => {
         if (latestLog.rows.length > 0) {
             const lastKm = latestLog.rows[0].km;
             if (parseInt(km) <= parseInt(lastKm)) {
-                return res.status(400).json({ 
-                    error: `Kilometraža ne može biti manja ili jednaka prethodnoj unetoj kilometraži za ovo vozilo (${lastKm.toLocaleString()} km).` 
+                return res.status(400).json({
+                    error: `Kilometraža ne može biti manja ili jednaka prethodnoj unetoj kilometraži za ovo vozilo (${lastKm.toLocaleString()} km).`
                 });
             }
         }
@@ -75,7 +94,15 @@ router.post('/', upload.single('receipt_image'), async (req, res) => {
 router.delete('/:id', async (req, res) => {
     const { id } = req.params;
     try {
-        await pool.query('DELETE FROM fuel_logs WHERE id = $1', [id]);
+        const result = await pool.query(
+            `DELETE FROM fuel_logs fl
+             USING vehicles v
+             WHERE fl.id = $1 AND fl.vehicle_id = v.id AND v.company_id = $2`,
+            [id, req.user.company_id]
+        );
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: 'Točenje nije pronađeno' });
+        }
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });

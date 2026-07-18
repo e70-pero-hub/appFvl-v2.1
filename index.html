@@ -12,6 +12,7 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" type="text/javascript"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 
 <body class="dark-theme">
@@ -32,7 +33,34 @@
                 </div>
                 <button type="submit" class="login-btn">Prijavi se</button>
             </form>
-            <div style="margin-top: 1.5rem; font-size: 0.85rem; color: var(--text-dim);">
+
+            <div id="register-error" class="login-error hidden"></div>
+            <form id="register-form" class="login-form hidden">
+                <div class="form-group">
+                    <label>Naziv Firme</label>
+                    <input type="text" id="reg-company" placeholder="Moja Firma d.o.o." required>
+                </div>
+                <div class="form-group">
+                    <label>Vaše Ime i Prezime</label>
+                    <input type="text" id="reg-fullname" placeholder="Petar Petrović" required>
+                </div>
+                <div class="form-group">
+                    <label>Korisničko Ime</label>
+                    <input type="text" id="reg-username" placeholder="korisnik" required>
+                </div>
+                <div class="form-group">
+                    <label>Lozinka</label>
+                    <input type="password" id="reg-password" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="login-btn">Registruj Firmu</button>
+            </form>
+
+            <p style="margin-top: 1rem; text-align: center; font-size: 0.85rem;">
+                <a href="#" id="toggle-register-link">Nemate nalog? Registrujte firmu</a>
+                <a href="#" id="toggle-login-link" class="hidden">Nazad na prijavu</a>
+            </p>
+
+            <div id="demo-hint" style="margin-top: 1.5rem; font-size: 0.85rem; color: var(--text-dim);">
                 Probajte:<br>
                 Admin: <b>admin</b> / <b>admin123</b><br>
                 Vozač: <b>operater</b> / <b>gas123</b>

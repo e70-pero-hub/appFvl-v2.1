@@ -2,11 +2,14 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const yaml = require('js-yaml');
+const swaggerUi = require('swagger-ui-express');
 const pool = require('./db');
 const { authMiddleware } = require('./middlewares/auth');
 
 // Importovanje ruta
 const authRoutes = require('./routes/auth');
+const companiesRoutes = require('./routes/companies');
 const vehiclesRoutes = require('./routes/vehicles');
 const usersRoutes = require('./routes/users');
 const fuelLogsRoutes = require('./routes/fuel');
@@ -24,10 +27,15 @@ if (!fs.existsSync('./uploads')) {
 app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname)); // Za serviranje frontenda
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // Slike
+app.use('/uploads', authMiddleware, express.static(path.join(__dirname, 'uploads'))); // Slike (zahteva login)
 
 // Javne rute
 app.use('/api', authRoutes); // Sadrži POST /login
+app.use('/api', companiesRoutes); // Sadrži POST /register
+
+// API dokumentacija (Swagger UI)
+const openapiSpec = yaml.load(fs.readFileSync(path.join(__dirname, 'openapi.yaml'), 'utf8'));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openapiSpec));
 
 // TEST RUTA
 app.get('/api/test', async (req, res) => {
@@ -47,4 +55,5 @@ app.use('/api/reports', authMiddleware, reportsRoutes);
 
 app.listen(port, () => {
     console.log(`Server radi na http://localhost:${port}`);
+    require('./jobs/expiryNotifications').start();
 });

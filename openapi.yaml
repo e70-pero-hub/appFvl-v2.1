@@ -1,0 +1,440 @@
+openapi: 3.0.3
+info:
+  title: FuelTrack Pro V2 API
+  description: >
+    API za praćenje flote i potrošnje goriva. Svi zaštićeni endpointi
+    zahtevaju JWT token (Authorization: Bearer <token>) koji sadrži
+    company_id - svi podaci su automatski izolovani po firmi.
+  version: 1.0.0
+servers:
+  - url: /api
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Vehicle:
+      type: object
+      properties:
+        id: { type: integer }
+        brand: { type: string }
+        model: { type: string }
+        plate: { type: string }
+        reg_exp: { type: string, format: date }
+        service: { type: string, format: date }
+        tires: { type: string, format: date }
+        user_id: { type: integer, nullable: true }
+        company_id: { type: integer }
+
+    User:
+      type: object
+      properties:
+        id: { type: integer }
+        username: { type: string }
+        full_name: { type: string }
+        role: { type: string, enum: [admin, user] }
+
+    FuelLog:
+      type: object
+      properties:
+        id: { type: integer }
+        vehicle_id: { type: integer }
+        km: { type: integer }
+        liters: { type: number, format: float }
+        price: { type: number, format: float }
+        date: { type: string, format: date }
+        receipt_qr_data: { type: string, nullable: true }
+        receipt_image_path: { type: string, nullable: true }
+
+    AuthResponse:
+      type: object
+      properties:
+        success: { type: boolean }
+        user: { $ref: '#/components/schemas/User' }
+        token: { type: string }
+
+    ErrorResponse:
+      type: object
+      properties:
+        error: { type: string }
+
+paths:
+  /login:
+    post:
+      summary: Prijava korisnika
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string }
+      responses:
+        '200':
+          description: Uspešna prijava
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '401':
+          description: Pogrešno korisničko ime ili lozinka
+
+  /register:
+    post:
+      summary: Registracija nove firme i prvog admin naloga
+      description: Kreira novu firmu i njenog prvog korisnika (uloga admin). Vraća isti oblik kao /login radi automatske prijave.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [company_name, username, password, full_name]
+              properties:
+                company_name: { type: string }
+                username: { type: string }
+                password: { type: string }
+                full_name: { type: string }
+      responses:
+        '200':
+          description: Firma i admin nalog kreirani, korisnik automatski prijavljen
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '400':
+          description: Nedostaje obavezno polje
+        '409':
+          description: Korisničko ime je već zauzeto
+
+  /vehicles:
+    get:
+      summary: Lista vozila trenutne firme
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: user_id
+          schema: { type: integer }
+          required: false
+          description: Filtrira vozila dodeljena određenom korisniku (mora pripadati istoj firmi)
+      responses:
+        '200':
+          description: Lista vozila
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Vehicle' }
+        '401': { description: Nedostaje ili nevažeći token }
+    post:
+      summary: Kreiranje novog vozila
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [brand, model, plate, reg_exp, service, tires]
+              properties:
+                brand: { type: string }
+                model: { type: string }
+                plate: { type: string }
+                reg_exp: { type: string, format: date }
+                service: { type: string, format: date }
+                tires: { type: string, format: date }
+                user_id: { type: integer, nullable: true }
+      responses:
+        '200':
+          description: Kreirano vozilo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Vehicle' }
+        '400': { description: Prosleđeni user_id ne pripada firmi pozivaoca }
+
+  /vehicles/{id}/latest_km:
+    get:
+      summary: Poslednja zabeležena kilometraža za vozilo
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Poslednja kilometraža (0 ako nema unosa)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  km: { type: integer }
+        '404': { description: Vozilo nije pronađeno (ne pripada firmi pozivaoca) }
+
+  /vehicles/{id}:
+    put:
+      summary: Izmena vozila
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                brand: { type: string }
+                model: { type: string }
+                plate: { type: string }
+                reg_exp: { type: string, format: date }
+                service: { type: string, format: date }
+                tires: { type: string, format: date }
+                user_id: { type: integer, nullable: true }
+      responses:
+        '200':
+          description: Izmenjeno vozilo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Vehicle' }
+        '404': { description: Vozilo nije pronađeno }
+    delete:
+      summary: Brisanje vozila
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Vozilo obrisano }
+        '404': { description: Vozilo nije pronađeno }
+
+  /users:
+    get:
+      summary: Lista korisnika trenutne firme
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Lista korisnika
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/User' }
+    post:
+      summary: Kreiranje novog korisnika
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password, full_name]
+              properties:
+                username: { type: string }
+                password: { type: string }
+                full_name: { type: string }
+                role: { type: string, enum: [admin, user], default: user }
+      responses:
+        '200':
+          description: Kreiran korisnik
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '409': { description: Korisničko ime je već zauzeto }
+
+  /users/{id}:
+    put:
+      summary: Izmena korisnika
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username: { type: string }
+                password: { type: string, description: 'Opciono - ako nije prosleđeno, lozinka se ne menja' }
+                full_name: { type: string }
+                role: { type: string, enum: [admin, user] }
+      responses:
+        '200':
+          description: Izmenjen korisnik
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '404': { description: Korisnik nije pronađen }
+    delete:
+      summary: Brisanje korisnika
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Korisnik obrisan }
+        '404': { description: Korisnik nije pronađen }
+
+  /users/{id}/password:
+    put:
+      summary: Promena sopstvene lozinke
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [newPassword]
+              properties:
+                newPassword: { type: string }
+      responses:
+        '200': { description: Lozinka promenjena }
+        '404': { description: Korisnik nije pronađen }
+
+  /fuel_logs:
+    get:
+      summary: Lista točenja goriva trenutne firme (paginirano)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: user_id
+          schema: { type: integer }
+          required: false
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50 }
+        - in: query
+          name: offset
+          schema: { type: integer, default: 0 }
+      responses:
+        '200':
+          description: Paginirana lista točenja
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rows:
+                    type: array
+                    items: { $ref: '#/components/schemas/FuelLog' }
+                  total: { type: integer }
+    post:
+      summary: Novo točenje goriva (sa opcionom slikom računa)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [vehicle_id, km, liters, price, date]
+              properties:
+                vehicle_id: { type: integer }
+                km: { type: integer }
+                liters: { type: number }
+                price: { type: number }
+                date: { type: string, format: date }
+                receipt_qr_data: { type: string }
+                receipt_image: { type: string, format: binary }
+      responses:
+        '200':
+          description: Kreiran unos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FuelLog' }
+        '400': { description: Kilometraža manja ili jednaka prethodnoj / vozilo ne pripada firmi }
+        '404': { description: Vozilo nije pronađeno }
+
+  /fuel_logs/{id}:
+    delete:
+      summary: Brisanje unosa točenja goriva
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Obrisano }
+        '404': { description: Točenje nije pronađeno }
+
+  /reports:
+    get:
+      summary: Menadžerski izveštaj (filtriran, sa zbirnim statistikama)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: month_year
+          schema: { type: string, example: '2026-07' }
+        - in: query
+          name: plate
+          schema: { type: string }
+        - in: query
+          name: username
+          schema: { type: string }
+      responses:
+        '200':
+          description: Redovi izveštaja i zbirna statistika
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  logs:
+                    type: array
+                    items: { type: object }
+                  summary:
+                    type: object
+                    properties:
+                      total_liters: { type: string }
+                      total_price: { type: string }
+                      avg_consumption: { type: string, nullable: true }
+
+  /uploads/{filename}:
+    get:
+      summary: Slika računa
+      description: >
+        Statički fajl, zaštićen authMiddleware-om. Pošto obični <a href> linkovi
+        ne šalju Authorization header, prihvata token i preko ?token= query parametra
+        kao alternativu (koristi se u UI-ju za linkove ka slikama).
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: filename
+          required: true
+          schema: { type: string }
+        - in: query
+          name: token
+          required: false
+          schema: { type: string }
+          description: Alternativa Authorization header-u
+      responses:
+        '200': { description: Sadržaj slike }
+        '401': { description: Nedostaje token }
+        '404': { description: Fajl ne postoji }

@@ -5,9 +5,9 @@ const pool = require('../db');
 router.get('/', async (req, res) => {
     const { month_year, plate, username } = req.query;
     try {
-        let query = 'SELECT * FROM admin_reports_view WHERE 1=1';
-        let values = [];
-        let index = 1;
+        let query = 'SELECT * FROM admin_reports_view WHERE company_id = $1';
+        let values = [req.user.company_id];
+        let index = 2;
 
         if (month_year) {
             query += ` AND month_year = $${index++}`;

@@ -52,6 +52,30 @@ class DataManager {
         }
     }
 
+    async register(companyName, fullName, username, password) {
+        try {
+            const response = await fetch(`${this.apiUrl}/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ company_name: companyName, full_name: fullName, username, password })
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                this.currentUser = result.user;
+                this.token = result.token;
+                localStorage.setItem('ft_user', JSON.stringify(result.user));
+                localStorage.setItem('ft_token', result.token);
+                localStorage.setItem('ft_last_activity', Date.now());
+                return { success: true };
+            }
+            return { success: false, message: result.message };
+        } catch (err) {
+            console.error('Register error:', err);
+            return { success: false, message: 'Greška pri povezivanju sa serverom' };
+        }
+    }
+
     async getAllData() {
         // Init
     }
